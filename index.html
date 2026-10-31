@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Electrical Circuit Studio - Simulador Interactivo</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a',
+                        panelbg: '#1e293b',
+                        borderbg: '#334155',
+                        accent: '#38bdf8',
+                        phase: '#ef4444',
+                        neutral: '#3b82f6',
+                        ground: '#22c55e'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            touch-action: none; /* Evita gestos molestos del navegador en móviles */
+        }
+        canvas {
+            cursor: crosshair;
+        }
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="bg-darkbg text-slate-100 h-screen w-screen flex flex-col">
+
+    <!-- HEADER / TOOLBAR SUPERIOR -->
+    <header class="h-14 bg-panelbg border-b border-borderbg flex items-center justify-between px-4 z-10 shrink-0">
+        <!-- Logo & Title -->
+        <div class="flex items-center space-x-3">
+            <div class="p-2 bg-amber-500/20 text-amber-400 rounded-lg">
+                <i class="fa-solid fa-bolt text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base tracking-wide text-slate-100 flex items-center gap-2">
+                    CircuitStudio <span class="text-xs bg-amber-500/20 text-amber-300 font-medium px-2 py-0.5 rounded hidden sm:inline">Pro</span>
+                </h1>
+            </div>
+        </div>
+
+        <!-- Controles de Simulación y Zoom -->
+        <div class="flex items-center space-x-2">
+            <!-- Play / Pause -->
+            <button id="btnPlayPause" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg flex items-center gap-2 transition shadow-lg shadow-emerald-900/30">
+                <i class="fa-solid fa-play" id="iconPlay"></i>
+                <span id="lblPlay" class="hidden sm:inline">Simular</span>
+            </button>
+            <button id="btnReset" class="px-3 py-1.5 bg-rose-600/80 hover:bg-rose-500 text-white text-sm font-medium rounded-lg transition" title="Limpiar Lienzo">
+                <i class="fa-solid fa-trash-can"></i>
+            </button>
+
+            <div class="h-6 w-[1px] bg-borderbg mx-1"></div>
+
+            <!-- Seleccionar Tipo de Cable -->
+            <div class="flex items-center bg-darkbg p-1 rounded-lg border border-borderbg">
+                <button id="wirePhase" class="px-2 py-1 rounded text-xs font-bold bg-rose-500 text-white transition mr-1" title="Fase (L)">L</button>
+                <button id="wireNeutral" class="px-2 py-1 rounded text-xs font-bold text-slate-400 hover:text-white transition mr-1" title="Neutro (N)">N</button>
+                <button id="wireGround" class="px-2 py-1 rounded text-xs font-bold text-slate-400 hover:text-white transition" title="Tierra (PE)">PE</button>
+            </div>
+
+            <div class="h-6 w-[1px] bg-borderbg mx-1 hidden sm:block"></div>
+
+            <!-- Zoom & Pan Controls -->
+            <button id="btnZoomIn" class="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-200 hidden sm:block"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+            <button id="btnZoomOut" class="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-200 hidden sm:block"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+        </div>
+    </header>
+
+    <!-- ÁREA PRINCIPAL: PALETA LATERAL + CANVAS -->
+    <div class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+
+        <!-- PALETA DE COMPONENTES (HORIZONTAL EN MÓVIL, VERTICAL EN PC) -->
+        <aside class="w-full md:w-64 bg-panelbg border-b md:border-b-0 md:border-r border-borderbg flex flex-col z-10 shrink-0 max-h-40 md:max-h-none overflow-y-auto">
+            <div class="p-2.5 border-b border-borderbg bg-slate-900/50 hidden md:block">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Componentes Eléctricos</h2>
+                <p class="text-[11px] text-slate-500 mt-0.5">Arrastra o toca para añadir</p>
+            </div>
+
+            <div class="flex flex-row md:flex-col p-2 gap-2 overflow-x-auto md:overflow-y-auto">
+
+                <!-- Fuentes -->
+                <div class="palette-item min-w-[120px] md:min-w-0 p-2 bg-slate-800/80 hover:bg-slate-700/80 border border-borderbg rounded-lg cursor-pointer flex items-center gap-2 transition" data-type="source_ac">
+                    <div class="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                        <i class="fa-solid fa-wave-square text-xs"></i>
+                    </div>
+                    <div class="truncate">
+                        <div class="text-xs font-medium text-slate-200">Fuente AC</div>
+                        <div class="text-[9px] text-slate-400">120V / 220V</div>
+                    </div>
+                </div>
+
+                <!-- Protecciones -->
+                <div class="palette-item min-w-[120px] md:min-w-0 p-2 bg-slate-800/80 hover:bg-slate-700/80 border border-borderbg rounded-lg cursor-pointer flex items-center gap-2 transition" data-type="breaker">
+                    <div class="w-7 h-7 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                        <i class="fa-solid fa-toggle-on text-xs"></i>
+                    </div>
+                    <div class="truncate">
+                        <div class="text-xs font-medium text-slate-200">Breaker</div>
+                        <div class="text-[9px] text-slate-400">15A Térmico</div>
+                    </div>
+                </div>
+
+                <!-- Interruptor -->
+                <div class="palette-item min-w-[120px] md:min-w-0 p-2 bg-slate-800/80 hover:bg-slate-700/80 border border-borderbg rounded-lg cursor-pointer flex items-center gap-2 transition" data-type="switch_spst">
+                    <div class="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                        <i class="fa-solid fa-toggle-off text-xs"></i>
+                    </div>
+                    <div class="truncate">
+                        <div class="text-xs font-medium text-slate-200">Interruptor</div>
+                        <div class="text-[9px] text-slate-400">SPST Sencillo</div>
+                    </div>
+                </div>
+
+                <!-- Lámpara -->
+                <div class="palette-item min-w-[120px] md:min-w-0 p-2 bg-slate-800/80 hover:bg-slate-700/80 border border-borderbg rounded-lg cursor-pointer flex items-center gap-2 transition" data-type="lamp">
+                    <div class="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-300 shrink-0">
+                        <i class="fa-regular fa-lightbulb text-xs"></i>
+                    </div>
+                    <div class="truncate">
+                        <div class="text-xs font-medium text-slate-200">Bombillo</div>
+                        <div class="text-[9px] text-slate-400">Carga 100W</div>
+                    </div>
+                </div>
+
+                <!-- Tomacorriente -->
+                <div class="palette-item min-w-[120px] md:min-w-0 p-2 bg-slate-800/80 hover:bg-slate-700/80 border border-borderbg rounded-lg cursor-pointer flex items-center gap-2 transition" data-type="outlet">
+                    <div class="w-7 h-7 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+                        <i class="fa-solid fa-power-off text-xs"></i>
+                    </div>
+                    <div class="truncate">
+                        <div class="text-xs font-medium text-slate-200">Tomacorriente</div>
+                        <div class="text-[9px] text-slate-400">Salida L+N+PE</div>
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+
+        <!-- ÁREA DEL CANVAS -->
+        <main class="flex-1 relative bg-darkbg overflow-hidden flex items-center justify-center">
+            <canvas id="circuitCanvas" class="w-full h-full block"></canvas>
+
+            <!-- Multímetro / Panel de Mediciones Flotante -->
+            <div id="meterPanel" class="absolute bottom-3 right-3 bg-panelbg/90 backdrop-blur border border-borderbg rounded-xl p-2.5 shadow-2xl w-52 pointer-events-auto text-xs">
+                <div class="flex items-center justify-between border-b border-borderbg pb-1.5 mb-1.5">
+                    <span class="font-bold text-slate-300 flex items-center gap-1">
+                        <i class="fa-solid fa-microchip text-accent"></i> Red Live
+                    </span>
+                    <span id="statusSimulation" class="text-emerald-400 font-semibold">Listo</span>
+                </div>
+                <div class="grid grid-cols-2 gap-1.5 text-center">
+                    <div class="bg-darkbg/80 p-1.5 rounded border border-borderbg">
+                        <div class="text-[9px] text-slate-400 font-semibold">Tensión</div>
+                        <div id="valVoltage" class="text-sm font-mono font-bold text-amber-400">120V</div>
+                    </div>
+                    <div class="bg-darkbg/80 p-1.5 rounded border border-borderbg">
+                        <div class="text-[9px] text-slate-400 font-semibold">Corriente</div>
+                        <div id="valCurrent" class="text-sm font-mono font-bold text-emerald-400">0.00A</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Banner Alerta Cortocircuito -->
+            <div id="shortAlert" class="hidden absolute top-3 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-xl border border-rose-300 animate-bounce flex items-center gap-2 z-50">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>¡CORTOCIRCUITO!</span>
+            </div>
+        </main>
+    </div>
+
+      <!-- JAVASCRIPT DEL SIMULADOR UNIVERSAL (PC & MÓVIL) -->
+    <script>
+        const canvas = document.getElementById('circuitCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        let isSimulating = false;
+        let selectedWireType = 'phase';
+        let currentScale = 1;
+        let panX = 0, panY = 0;
+        let isPanning = false;
+        let startPanX = 0, startPanY = 0;
+
+        let components = [];
+        let wires = [];
+
+        let draggedComponent = null;
+        let dragOffsetX = 0, dragOffsetY = 0;
+        let connectingTerminal = null;
+        let tempMousePos = { x: 0, y: 0 };
+
+        const WIRE_COLORS = {
+            phase: '#ef4444',
+            neutral: '#3b82f6',
+            ground: '#22c55e'
+        };
+
+        class Terminal {
+            constructor(parent, id, x, y, label = '', type = 'any') {
+                this.parent = parent;
+                this.id = id;
+                this.relX = x;
+                this.relY = y;
+                this.label = label;
+                this.type = type;
+                this.voltage = 0;
+            }
+            get absoluteX() { return this.parent.x + this.relX; }
+            get absoluteY() { return this.parent.y + this.relY; }
+        }
+
+        class Component {
+            constructor(id, type, x, y) {
+                this.id = id;
+                this.type = type;
+                this.x = x;
+                this.y = y;
+                this.width = 80;
+                this.height = 80;
+                this.terminals = [];
+                this.state = false;
+                this.tripped = false;
+                this.isLit = false;
+                this.resistance = 144;
+                this.setupTerminals();
+            }
+
+            setupTerminals() {
+                switch(this.type) {
+                    case 'source_ac':
+                        this.width = 90; this.height = 90;
+                        this.terminals.push(new Terminal(this, 'L', -30, 20, 'L', 'phase'));
+                        this.terminals.push(new Terminal(this, 'N', 30, 20, 'N', 'neutral'));
+                        break;
+                    case 'breaker':
+                        this.width = 60; this.height = 100;
+                        this.state = true;
+                        this.terminals.push(new Terminal(this, 'in', 0, -35, 'IN'));
+                        this.terminals.push(new Terminal(this, 'out', 0, 35, 'OUT'));
+                        break;
+                    case 'switch_spst':
+                        this.width = 70; this.height = 70;
+                        this.terminals.push(new Terminal(this, 'in', -25, 0, '1'));
+                        this.terminals.push(new Terminal(this, 'out', 25, 0, '2'));
+                        break;
+                    case 'lamp':
+                        this.width = 70; this.height = 70;
+                        this.terminals.push(new Terminal(this, 't1', -20, 22, 'L1'));
+                        this.terminals.push(new Terminal(this, 't2', 20, 22, 'L2'));
+                        break;
+                    case 'outlet':
+                        this.width = 70; this.height = 70;
+                        this.terminals.push(new Terminal(this, 'L', -20, -18, 'L', 'phase'));
+                        this.terminals.push(new Terminal(this, 'N', 20, -18, 'N', 'neutral'));
+                        break;
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#475569';
+                ctx.fillStyle = '#1e293b';
+
+                switch(this.type) {
+                    case 'source_ac':
+                        ctx.beginPath(); ctx.arc(0, 0, 35, 0, Math.PI * 2); ctx.fill();
+                        ctx.strokeStyle = '#f59e0b'; ctx.stroke();
+                        ctx.fillStyle = '#cbd5e1'; ctx.font = 'bold 10px Inter'; ctx.textAlign = 'center';
+                        ctx.fillText('120V AC', 0, -5);
+                        break;
+                    case 'breaker':
+                        ctx.beginPath(); ctx.roundRect(-25, -45, 50, 90, 6); ctx.fill();
+                        ctx.strokeStyle = this.tripped ? '#ef4444' : '#64748b'; ctx.stroke();
+                        ctx.fillStyle = this.tripped ? '#ef4444' : (this.state ? '#22c55e' : '#475569');
+                        ctx.fillRect(-10, this.state && !this.tripped ? -25 : 5, 20, 20);
+                        break;
+                    case 'switch_spst':
+                        ctx.beginPath(); ctx.roundRect(-25, -25, 50, 50, 6); ctx.fill(); ctx.stroke();
+                        ctx.beginPath(); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 3;
+                        ctx.moveTo(-15, 0); ctx.lineTo(this.state ? 15 : 10, this.state ? 0 : -12); ctx.stroke();
+                        break;
+                    case 'lamp':
+                        ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI * 2);
+                        ctx.fillStyle = this.isLit ? '#fef08a' : '#334155';
+                        if(this.isLit) { ctx.shadowColor = '#eab308'; ctx.shadowBlur = 15; }
+                        ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+                        break;
+                    case 'outlet':
+                        ctx.beginPath(); ctx.arc(0, 0, 28, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                        ctx.fillStyle = '#0f172a';
+                        ctx.fillRect(-12, -12, 5, 10); ctx.fillRect(7, -12, 5, 10);
+                        break;
+                }
+
+                this.terminals.forEach(term => {
+                    ctx.beginPath(); ctx.arc(term.relX, term.relY, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = term.type === 'phase' ? '#ef4444' : (term.type === 'neutral' ? '#3b82f6' : '#cbd5e1');
+                    ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke();
+                });
+
+                ctx.restore();
+            }
+
+            getTerminalAt(x, y) {
+                return this.terminals.find(t => Math.hypot(t.absoluteX - x, t.absoluteY - y) <= 12);
+            }
+        }
+
+        class Wire {
+            constructor(fromTerminal, toTerminal, type = 'phase') {
+                this.from = fromTerminal;
+                this.to = toTerminal;
+                this.type = type;
+                this.color = WIRE_COLORS[type] || '#ef4444';
+                this.hasCurrent = false;
+            }
+            draw(ctx) {
+                const x1 = this.from.absoluteX, y1 = this.from.absoluteY;
+                const x2 = this.to.absoluteX, y2 = this.to.absoluteY;
+                ctx.save();
+                ctx.beginPath(); ctx.moveTo(x1, y1);
+                const dx = Math.abs(x2 - x1) * 0.4;
+                ctx.bezierCurveTo(x1 + dx, y1, x2 - dx, y2, x2, y2);
+                ctx.strokeStyle = this.color; ctx.lineWidth = 3; ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        function runSimulationLogic() {
+            if (!isSimulating) return;
+            components.forEach(c => c.terminals.forEach(t => t.voltage = 0));
+            
+            const sources = components.filter(c => c.type === 'source_ac');
+            sources.forEach(src => {
+                const l = src.terminals.find(t => t.id === 'L');
+                const n = src.terminals.find(t => t.id === 'N');
+                if(l) l.voltage = 120;
+                if(n) n.voltage = 0;
+            });
+
+            let changed = true, loops = 0;
+            while(changed && loops < 20) {
+                changed = false; loops++;
+                wires.forEach(w => {
+                    if(w.from.voltage > w.to.voltage) { w.to.voltage = w.from.voltage; changed = true; }
+                    else if(w.to.voltage > w.from.voltage) { w.from.voltage = w.to.voltage; changed = true; }
+                });
+                components.forEach(c => {
+                    if((c.type === 'breaker' || c.type === 'switch_spst') && c.state && !c.tripped) {
+                        const v = Math.max(c.terminals[0].voltage, c.terminals[1].voltage);
+                        c.terminals[0].voltage = v; c.terminals[1].voltage = v;
+                    }
+                });
+            }
+
+            let lit = false, current = 0;
+            components.forEach(c => {
+                if(c.type === 'lamp') {
+                    const deltaV = Math.abs(c.terminals[0].voltage - c.terminals[1].voltage);
+                    if(deltaV > 50) { c.isLit = true; lit = true; current = 0.83; }
+                    else { c.isLit = false; }
+                }
+            });
+
+            document.getElementById('valCurrent').innerText = `${lit ? current.toFixed(2) : '0.00'}A`;
+        }
+function draw() {
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(panX, panY);
+            ctx.scale(currentScale, currentScale);
+
+            wires.forEach(w => w.draw(ctx));
+            if (connectingTerminal) {
+                ctx.beginPath();
+                ctx.moveTo(connectingTerminal.absoluteX, connectingTerminal.absoluteY);
+                ctx.lineTo(tempMousePos.x, tempMousePos.y);
+                ctx.strokeStyle = WIRE_COLORS[selectedWireType];
+                ctx.lineWidth = 3; ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
+            }
+            components.forEach(c => c.draw(ctx));
+            ctx.restore();
+
+            runSimulationLogic();
+            requestAnimationFrame(draw);
+        }
+
+        // --- MANEJADORES UNIFICADOS MOUSE Y TOUCH ---
+        function getEventPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: (clientX - rect.left - panX) / currentScale,
+                y: (clientY - rect.top - panY) / currentScale
+            };
+        }
+
+        canvas.addEventListener('mousedown', handleStart);
+        canvas.addEventListener('mousemove', handleMove);
+        canvas.addEventListener('mouseup', handleEnd);
+
+        canvas.addEventListener('touchstart', (e) => { handleStart(e); e.preventDefault(); }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => { handleMove(e); e.preventDefault(); }, { passive: false });
+        canvas.addEventListener('touchend', (e) => { handleEnd(e); e.preventDefault(); }, { passive: false });
+
+        function handleStart(e) {
+            const pos = getEventPos(e);
+
+            for (const comp of components) {
+                const term = comp.getTerminalAt(pos.x, pos.y);
+                if (term) { connectingTerminal = term; tempMousePos = pos; return; }
+            }
+
+            for (const comp of components) {
+                if (Math.abs(comp.x - pos.x) < comp.width/2 && Math.abs(comp.y - pos.y) < comp.height/2) {
+                    if (comp.type === 'switch_spst' || comp.type === 'breaker') comp.state = !comp.state;
+                    draggedComponent = comp;
+                    dragOffsetX = pos.x - comp.x;
+                    dragOffsetY = pos.y - comp.y;
+                    return;
+                }
+            }
+            isPanning = true;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            startPanX = clientX - panX;
+            startPanY = clientY - panY;
+        }
+
+        function handleMove(e) {
+            const pos = getEventPos(e);
+            if (isPanning) {
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                panX = clientX - startPanX;
+                panY = clientY - startPanY;
+                return;
+            }
+            if (draggedComponent) {
+                draggedComponent.x = pos.x - dragOffsetX;
+                draggedComponent.y = pos.y - dragOffsetY;
+            }
+            if (connectingTerminal) tempMousePos = pos;
+        }
+
+        function handleEnd(e) {
+            if (connectingTerminal) {
+                const pos = getEventPos(e);
+                for (const comp of components) {
+                    const term = comp.getTerminalAt(pos.x, pos.y);
+                    if (term && term !== connectingTerminal) {
+                        wires.push(new Wire(connectingTerminal, term, selectedWireType));
+                        break;
+                    }
+                }
+                connectingTerminal = null;
+            }
+            draggedComponent = null;
+            isPanning = false;
+        }
+
+        // Clic en la paleta para añadir componentes fácilmente en móviles
+        document.querySelectorAll('.palette-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const type = item.dataset.type;
+                const newComp = new Component(Date.now(), type, canvas.width / (2 * currentScale) - panX, canvas.height / (2 * currentScale) - panY);
+                components.push(newComp);
+            });
+        });
+
+        // Controles UI
+        document.getElementById('wirePhase').addEventListener('click', () => selectedWireType = 'phase');
+        document.getElementById('wireNeutral').addEventListener('click', () => selectedWireType = 'neutral');
+        document.getElementById('wireGround').addEventListener('click', () => selectedWireType = 'ground');
+
+        const btnPlayPause = document.getElementById('btnPlayPause');
+        btnPlayPause.addEventListener('click', () => {
+            isSimulating = !isSimulating;
+            document.getElementById('lblPlay').innerText = isSimulating ? 'Pausar' : 'Simular';
+            document.getElementById('statusSimulation').innerText = isSimulating ? 'Activo' : 'Listo';
+        });
+
+        document.getElementById('btnReset').addEventListener('click', () => {
+            components = []; wires = []; isSimulating = false;
+        });
+
+        document.getElementById('btnZoomIn').addEventListener('click', () => currentScale = Math.min(currentScale + 0.2, 2));
+        document.getElementById('btnZoomOut').addEventListener('click', () => currentScale = Math.max(currentScale - 0.2, 0.5));
+
+        // Circuito Demo inicial
+        window.onload = () => {
+            resizeCanvas();
+            const ac = new Component(1, 'source_ac', canvas.width/2 - 120, canvas.height/2);
+            const sw = new Component(2, 'switch_spst', canvas.width/2, canvas.height/2);
+            const lamp = new Component(3, 'lamp', canvas.width/2 + 120, canvas.height/2);
+            components.push(ac, sw, lamp);
+            wires.push(new Wire(ac.terminals[0], sw.terminals[0], 'phase'));
+            wires.push(new Wire(sw.terminals[1], lamp.terminals[0], 'phase'));
+            wires.push(new Wire(lamp.terminals[1], ac.terminals[1], 'neutral'));
+            draw();
+        };
+    </script>
+</body>
+</html>
